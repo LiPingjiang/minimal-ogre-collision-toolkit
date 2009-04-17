@@ -2,7 +2,9 @@
 MOC - Minimal Ogre Collision v 1.0 beta
 The MIT License
 
-Copyright (c) 2008 MouseVolcano (Thomas Gradl, Esa Kylli, Erik Biermann, Karolina Sefyrin)
+Copyright (c) 2008, 2009 MouseVolcano (Thomas Gradl, Karolina Sefyrin), Esa Kylli
+
+Thanks to Erik Biermann for the help with the Videos, SEO and Webwork
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -38,37 +40,35 @@ THE SOFTWARE.
 #include "ETTerrainInfo.h"
 #endif
 
-using namespace Ogre;
-
 namespace MOC {
 
 class CollisionTools {
 public:
 	Ogre::RaySceneQuery *mRaySceneQuery;
 	Ogre::RaySceneQuery *mTSMRaySceneQuery;
-	
-	SceneManager *mSceneMgr;
-	
-#ifdef ETM_TERRAIN	
+
+	Ogre::SceneManager *mSceneMgr;
+
+#ifdef ETM_TERRAIN
 	const ET::TerrainInfo* mTerrainInfo;
 	CollisionTools(Ogre::SceneManager *sceneMgr, const ET::TerrainInfo* terrainInfo);
 #endif
 
 	CollisionTools(Ogre::SceneManager *sceneMgr);
-	~CollisionTools();			
+	~CollisionTools();
 
-	bool raycastFromCamera(RenderWindow* rw, Camera* camera, const OIS::MouseEvent &e, Vector3 &result, ulong &target,float &closest_distance, const uint32 queryMask = 0xFFFFFFFF);
+	bool raycastFromCamera(Ogre::RenderWindow* rw, Ogre::Camera* camera, const OIS::MouseEvent &e, Ogre::Vector3 &result, unsigned long &target,float &closest_distance, const Ogre::uint32 queryMask = 0xFFFFFFFF);
 
-	bool collidesWithEntity(const Vector3& fromPoint, const Vector3& toPoint, const float collisionRadius = 2.5f, const float rayHeightLevel = 0.0f, const uint32 queryMask = 0xFFFFFFFF);
+	bool collidesWithEntity(const Ogre::Vector3& fromPoint, const Ogre::Vector3& toPoint, const float collisionRadius = 2.5f, const float rayHeightLevel = 0.0f, const Ogre::uint32 queryMask = 0xFFFFFFFF);
 
-	void calculateY(SceneNode *n, const bool doTerrainCheck = true, const bool doGridCheck = true, const float gridWidth = 1.0f, const uint32 queryMask = 0xFFFFFFFF);
-	
+	void calculateY(Ogre::SceneNode *n, const bool doTerrainCheck = true, const bool doGridCheck = true, const float gridWidth = 1.0f, const Ogre::uint32 queryMask = 0xFFFFFFFF);
+
 	float getTSMHeightAt(const float x, const float z);
 
-	bool raycastFromPoint(const Vector3 &point, const Vector3 &normal, Vector3 &result,ulong &target,float &closest_distance, const uint32 queryMask = 0xFFFFFFFF);
+	bool raycastFromPoint(const Ogre::Vector3 &point, const Ogre::Vector3 &normal, Ogre::Vector3 &result,unsigned long &target,float &closest_distance, const Ogre::uint32 queryMask = 0xFFFFFFFF);
 
-	bool raycast(const Ray &ray, Vector3 &result,ulong &target,float &closest_distance, const uint32 queryMask = 0xFFFFFFFF);
-	
+	bool raycast(const Ogre::Ray &ray, Ogre::Vector3 &result, unsigned long &target,float &closest_distance, const Ogre::uint32 queryMask = 0xFFFFFFFF);
+
 	void setHeightAdjust(const float heightadjust);
 	float getHeightAdjust(void);
 
