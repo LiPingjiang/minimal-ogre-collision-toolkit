@@ -33,7 +33,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 #endregion Header
 
-namespace Helper
+namespace MMOC
 {
     using System;
     using System.Collections.Generic;
