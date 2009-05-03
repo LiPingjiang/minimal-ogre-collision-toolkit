@@ -29,7 +29,7 @@ THE SOFTWARE.
 
 #include <Ogre.h>
 
-// comment if you dont use ETM as terrainmanager
+// uncomment if you want to use ETM as terrainmanager
 //#define ETM_TERRAIN
 
 #ifdef ETM_TERRAIN
