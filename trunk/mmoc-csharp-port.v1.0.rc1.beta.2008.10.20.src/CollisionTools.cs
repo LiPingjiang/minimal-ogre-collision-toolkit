@@ -69,14 +69,21 @@ namespace MMOC
 
         #region Properties
 
+        #region Public Properties
+
         public float HeightAdjust
         {
-            get; set;
+            get;
+            set;
         }
+
+        #endregion Public Properties
 
         #endregion Properties
 
         #region Methods
+
+        #region Public Methods
 
         public void CalculateY(SceneNode n, bool doTerrainCheck, bool doGridCheck, float gridWidth, uint queryMask)
         {
@@ -183,18 +190,19 @@ namespace MMOC
             updateRay.Origin = new Vector3(x, 9999, z);
             updateRay.Direction = Vector3.NEGATIVE_UNIT_Y;
 
-            RaySceneQuery tsmRaySceneQuery = this.sceneMgr.CreateRayQuery(updateRay);
-
-            RaySceneQueryResult qryResult = tsmRaySceneQuery.Execute();
-
-            RaySceneQueryResult.Iterator i = qryResult.Begin();
-            if (i != qryResult.End() && i.Value.worldFragment != null)
+            using (RaySceneQuery tsmRaySceneQuery = this.sceneMgr.CreateRayQuery(updateRay))
             {
-                y = i.Value.worldFragment.singleIntersection.y;
-            }
+                using (RaySceneQueryResult qryResult = tsmRaySceneQuery.Execute())
+                {
+                    RaySceneQueryResult.Iterator i = qryResult.Begin();
+                    if (i != qryResult.End() && i.Value.worldFragment != null)
+                    {
+                        y = i.Value.worldFragment.singleIntersection.y;
+                    }
+                }
 
-            this.sceneMgr.DestroyQuery(tsmRaySceneQuery);
-            tsmRaySceneQuery.Dispose();
+                this.sceneMgr.DestroyQuery(tsmRaySceneQuery);
+            }
 
             return y;
         }
@@ -214,100 +222,106 @@ namespace MMOC
                 raySceneQuery.SetSortByDistance(true);
                 raySceneQuery.QueryMask = queryMask;
 
-                // execute the query, returns a vector of hits
-                if (raySceneQuery.Execute().Count <= 0)
+                using (RaySceneQueryResult queryResult = raySceneQuery.Execute())
                 {
-                    // raycast did not hit an objects bounding box
-                    return null;
-                }
-            }
-            else
-            {
-                // LogManager.Singleton.LogMessage("Cannot raycast without RaySceneQuery instance");
-                return null;
-            }
-
-            // at this point we have raycast to a series of different objects bounding boxes.
-            // we need to test these different objects to see which is the first polygon hit.
-            // there are some minor optimizations (distance based) that mean we wont have to
-            // check all of the objects most of the time, but the worst case scenario is that
-            // we need to test every triangle of every object.
-            // Ogre::Real closest_distance = -1.0f;
-            rr.Distance = -1.0f;
-            Vector3 closest_result = Vector3.ZERO;
-            RaySceneQueryResult query_result = raySceneQuery.GetLastResults();
-            for (int qridx = 0; qridx < query_result.Count; qridx++)
-            {
-                // stop checking if we have found a raycast hit that is closer
-                // than all remaining entities
-                if ((rr.Distance >= 0.0f) && (rr.Distance < query_result[qridx].distance))
-                {
-                    break;
-                }
-
-                // only check this result if its a hit against an entity
-                if ((query_result[qridx].movable != null)  &&
-                    (query_result[qridx].movable.MovableType.CompareTo("Entity") == 0))
-                {
-                    // get the entity to check
-                    Entity pentity = (Entity)query_result[qridx].movable;
-
-                    // mesh data to retrieve
-                    int vertex_count;
-                    int index_count;
-                    Vector3[] vertices;
-                    int[] indices;
-
-                    // get the mesh information
-                    GetMeshInformation(
-                        pentity.GetMesh(),
-                        out vertex_count,
-                        out vertices,
-                        out index_count,
-                        out indices,
-                        pentity.ParentNode.WorldPosition,
-                        pentity.ParentNode.WorldOrientation,
-                        pentity.ParentNode.GetScale());
-
-                    // test for hitting individual triangles on the mesh
-                    bool new_closest_found = false;
-                    for (int i = 0; i < index_count; i += 3)
+                    // execute the query, returns a vector of hits
+                    if (queryResult.Count <= 0)
                     {
-                        // check for a hit against this triangle
-                        Pair<bool, float> hit = Mogre.Math.Intersects(ray, vertices[indices[i]], vertices[indices[i + 1]], vertices[indices[i + 2]], true, false);
+                        // raycast did not hit an objects bounding box
+                        this.sceneMgr.DestroyQuery(raySceneQuery);
+                        raySceneQuery.Dispose();
+                        return null;
+                    }
 
-                        // if it was a hit check if its the closest
-                        if (hit.first)
+                    // at this point we have raycast to a series of different objects bounding boxes.
+                    // we need to test these different objects to see which is the first polygon hit.
+                    // there are some minor optimizations (distance based) that mean we wont have to
+                    // check all of the objects most of the time, but the worst case scenario is that
+                    // we need to test every triangle of every object.
+                    // Ogre::Real closest_distance = -1.0f;
+                    rr.Distance = -1.0f;
+                    Vector3 closestResult = Vector3.ZERO;
+
+                    for (int qridx = 0; qridx < queryResult.Count; qridx++)
+                    {
+                        // stop checking if we have found a raycast hit that is closer
+                        // than all remaining entities
+                        if (rr.Distance >= 0.0f && rr.Distance < queryResult[qridx].distance)
                         {
-                            if ((rr.Distance < 0.0f) ||
-                                (hit.second < rr.Distance))
+                            break;
+                        }
+
+                        // only check this result if its a hit against an entity
+                        if (queryResult[qridx].movable != null
+                            && queryResult[qridx].movable.MovableType == "Entity")
+                        {
+                            // get the entity to check
+                            Entity entity = (Entity)queryResult[qridx].movable;
+
+                            // mesh data to retrieve
+                            Vector3[] vertices;
+                            int[] indices;
+
+                            // get the mesh information
+                            using (MeshPtr mesh = entity.GetMesh())
                             {
-                                // this is the closest so far, save it off
-                                rr.Distance = hit.second;
-                                new_closest_found = true;
+                                GetMeshInformation(
+                                    mesh,
+                                    out vertices,
+                                    out indices,
+                                    entity.ParentNode._getDerivedPosition(),
+                                    entity.ParentNode._getDerivedOrientation(),
+                                    entity.ParentNode.GetScale());
+                            }
+
+                            int vertexCount = vertices.Length;
+                            int indexCount = indices.Length;
+
+                            // test for hitting individual triangles on the mesh
+                            bool newClosestFound = false;
+                            for (int i = 0; i < indexCount; i += 3)
+                            {
+                                // check for a hit against this triangle
+                                Pair<bool, float> hit = Mogre.Math.Intersects(ray, vertices[indices[i]], vertices[indices[i + 1]], vertices[indices[i + 2]], true, false);
+
+                                // if it was a hit check if its the closest
+                                if (hit.first)
+                                {
+                                    if ((rr.Distance < 0.0f) ||
+                                        (hit.second < rr.Distance))
+                                    {
+                                        // this is the closest so far, save it off
+                                        rr.Distance = hit.second;
+                                        newClosestFound = true;
+                                    }
+                                }
+                            }
+
+                            // if we found a new closest raycast for this object, update the
+                            // closest_result before moving on to the next object.
+                            if (newClosestFound)
+                            {
+                                rr.Target = entity;
+                                closestResult = ray.GetPoint(rr.Distance);
                             }
                         }
                     }
 
-                    // if we found a new closest raycast for this object, update the
-                    // closest_result before moving on to the next object.
-                    if (new_closest_found)
+                    this.sceneMgr.DestroyQuery(raySceneQuery);
+                    raySceneQuery.Dispose();
+
+                    // return the result
+                    if (rr.Distance >= 0.0f)
                     {
-                        rr.Target = pentity;
-                        closest_result = ray.GetPoint(rr.Distance);
+                        // raycast success
+                        rr.Position = closestResult;
+                        return rr;
+                    }
+                    else
+                    {
+                        return null;
                     }
                 }
-            }
-
-            this.sceneMgr.DestroyQuery(raySceneQuery);
-            raySceneQuery.Dispose();
-
-            // return the result
-            if (rr.Distance >= 0.0f)
-            {
-                // raycast success
-                rr.Position = closest_result;
-                return rr;
             }
             else
             {
@@ -335,14 +349,18 @@ namespace MMOC
             return this.Raycast(ray, queryMask);
         }
 
+        #endregion Public Methods
+
+        #region Private Static Methods
+
         // Get the mesh information for the given mesh.
         // Code found on this forum link: http://www.ogre3d.org/wiki/index.php/RetrieveVertexData
-        private static unsafe void GetMeshInformation(MeshPtr mesh, out int vertex_count, out Vector3[] vertices, out int index_count, out int[] indices, Vector3 position, Quaternion orient, Vector3 scale)
+        private static unsafe void GetMeshInformation(MeshPtr mesh, out Vector3[] vertices,  out int[] indices, Vector3 position, Quaternion orient, Vector3 scale)
         {
-            bool added_shared = false;
-            int current_offset = 0, shared_offset = 0, next_offset = 0, index_offset = 0;
+            bool addedShared = false;
+            int currentOffset = 0, sharedOffset = 0, nextOffset = 0, indexOffset = 0;
 
-            vertex_count = index_count = 0;
+            int vertexCount = 0, indexCount = 0;
 
             // Calculate how many vertices and indices we're going to need
             for (ushort i = 0; i < mesh.NumSubMeshes; ++i)
@@ -352,95 +370,98 @@ namespace MMOC
                 // We only need to add the shared vertices once
                 if (submesh.useSharedVertices)
                 {
-                    if (!added_shared)
+                    if (!addedShared)
                     {
-                        vertex_count += (int)mesh.sharedVertexData.vertexCount;
-                        added_shared = true;
+                        vertexCount += (int)mesh.sharedVertexData.vertexCount;
+                        addedShared = true;
                     }
                 }
                 else
                 {
-                    vertex_count += (int)submesh.vertexData.vertexCount;
+                    vertexCount += (int)submesh.vertexData.vertexCount;
                 }
 
                 // Add the indices
-                index_count += (int)submesh.indexData.indexCount;
+                indexCount += (int)submesh.indexData.indexCount;
             }
 
             // Allocate space for the vertices and indices
-            vertices = new Vector3[vertex_count];
-            indices = new int[index_count];
+            vertices = new Vector3[vertexCount];
+            indices = new int[indexCount];
 
-            added_shared = false;
+            addedShared = false;
 
             // Run through the submeshes again, adding the data into the arrays
             for (ushort i = 0; i < mesh.NumSubMeshes; ++i)
             {
                 SubMesh submesh = mesh.GetSubMesh(i);
 
-                VertexData vertex_data = submesh.useSharedVertices ? mesh.sharedVertexData : submesh.vertexData;
+                VertexData vertexData = submesh.useSharedVertices ? mesh.sharedVertexData : submesh.vertexData;
 
-                if ((!submesh.useSharedVertices) || (submesh.useSharedVertices && !added_shared))
+                if ((!submesh.useSharedVertices) || (submesh.useSharedVertices && !addedShared))
                 {
                     if (submesh.useSharedVertices)
                     {
-                        added_shared = true;
-                        shared_offset = current_offset;
+                        addedShared = true;
+                        sharedOffset = currentOffset;
                     }
 
-                    VertexElement posElem = vertex_data.vertexDeclaration.FindElementBySemantic(VertexElementSemantic.VES_POSITION);
-
-                    HardwareVertexBufferSharedPtr vbuf = vertex_data.vertexBufferBinding.GetBuffer(posElem.Source);
-
-                    byte* vertex = (byte*)vbuf.Lock(HardwareBuffer.LockOptions.HBL_READ_ONLY);
-
-                    // There is _no_ baseVertexPointerToElement() which takes an Ogre::Real or a double
-                    //  as second argument. So make it float, to avoid trouble when Ogre::Real will
-                    //  be comiled/typedefed as double:
-                    //      Ogre::Real* pReal;
-                    float* preal;
-
-                    for (uint j = 0; j < vertex_data.vertexCount; ++j, vertex += vbuf.VertexSize)
+                    VertexElement posElem = vertexData.vertexDeclaration.FindElementBySemantic(VertexElementSemantic.VES_POSITION);
+                    System.Diagnostics.Debug.Assert(posElem.Type == VertexElementType.VET_FLOAT3);
+                    
+                    using (HardwareVertexBufferSharedPtr vbuf = vertexData.vertexBufferBinding.GetBuffer(posElem.Source))
                     {
-                        posElem.BaseVertexPointerToElement(vertex, &preal);
-                        Vector3 pt = new Vector3(preal[0], preal[1], preal[2]);
+                        byte* vertex = (byte*)vbuf.Lock(HardwareBuffer.LockOptions.HBL_READ_ONLY);
+                        float* preal;
 
-                        vertices[current_offset + j] = (orient * (pt * scale)) + position;
+                        for (uint j = 0; j < vertexData.vertexCount; ++j, vertex += vbuf.VertexSize)
+                        {
+                            posElem.BaseVertexPointerToElement(vertex, &preal);
+                            Vector3 pt = new Vector3(preal[0], preal[1], preal[2]);
+
+                            vertices[currentOffset + j] = (orient * (pt * scale)) + position;
+                        }
+
+                        vbuf.Unlock();
                     }
 
-                    vbuf.Unlock();
-                    next_offset += (int)vertex_data.vertexCount;
+                    nextOffset += (int)vertexData.vertexCount;
                 }
 
-                IndexData index_data = submesh.indexData;
-                uint numTris = index_data.indexCount / 3;
-                HardwareIndexBufferSharedPtr ibuf = index_data.indexBuffer;
+                IndexData indexData = submesh.indexData;
+                uint numTris = indexData.indexCount / 3;
 
-                bool use32bitindexes = ibuf.Type == HardwareIndexBuffer.IndexType.IT_32BIT;
-
-                int* plong = (int*)ibuf.Lock(HardwareBuffer.LockOptions.HBL_READ_ONLY);
-                ushort* pshort = (ushort*)plong;
-                int offset = submesh.useSharedVertices ? shared_offset : current_offset;
-
-                if (use32bitindexes)
+                using (HardwareIndexBufferSharedPtr ibuf = indexData.indexBuffer)
                 {
-                    for (uint k = 0; k < numTris * 3; ++k)
+                    bool use32bitindexes = ibuf.Type == HardwareIndexBuffer.IndexType.IT_32BIT;
+
+                    int* plong = (int*)ibuf.Lock(HardwareBuffer.LockOptions.HBL_READ_ONLY);
+                    ushort* pshort = (ushort*)plong;
+                    int offset = submesh.useSharedVertices ? sharedOffset : currentOffset;
+
+                    if (use32bitindexes)
                     {
-                        indices[index_offset++] = plong[k] + offset;
+                        for (uint k = 0; k < numTris * 3; ++k)
+                        {
+                            indices[indexOffset++] = plong[k] + offset;
+                        }
                     }
-                }
-                else
-                {
-                    for (uint k = 0; k < numTris * 3; ++k)
+                    else
                     {
-                        indices[index_offset++] = pshort[k] + offset;
+                        for (uint k = 0; k < numTris * 3; ++k)
+                        {
+                            indices[indexOffset++] = pshort[k] + offset;
+                        }
                     }
+
+                    ibuf.Unlock();
                 }
 
-                ibuf.Unlock();
-                current_offset = next_offset;
+                currentOffset = nextOffset;
             }
         }
+
+        #endregion Private Static Methods
 
         #endregion Methods
 
@@ -450,20 +471,27 @@ namespace MMOC
         {
             #region Properties
 
+            #region Public Properties
+
             public float Distance
             {
-                get; set;
+                get;
+                set;
             }
 
             public Vector3 Position
             {
-                get; set;
+                get;
+                set;
             }
 
             public Entity Target
             {
-                get; set;
+                get;
+                set;
             }
+
+            #endregion Public Properties
 
             #endregion Properties
         }
