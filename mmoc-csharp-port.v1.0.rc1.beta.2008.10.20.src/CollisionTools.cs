@@ -38,8 +38,6 @@ namespace MMOC
     using System;
     using System.Collections.Generic;
 
-    using MET;
-
     using Mogre;
 
     public class CollisionTools
@@ -47,7 +45,6 @@ namespace MMOC
         #region Fields
 
         private SceneManager sceneMgr;
-        private TerrainInfo terrainInfo;
 
         #endregion Fields
 
@@ -57,12 +54,6 @@ namespace MMOC
         {
             this.sceneMgr = sceneMgr;
             this.HeightAdjust = 0.0f;
-        }
-
-        public CollisionTools(SceneManager sceneMgr, TerrainInfo terrainInfo)
-            : this(sceneMgr)
-        {
-            this.terrainInfo = terrainInfo;
         }
 
         #endregion Constructors
@@ -133,14 +124,7 @@ namespace MMOC
             // set the parameter to false if you are not using ETM or TSM
             if (doTerrainCheck)
             {
-                if (this.terrainInfo != null)
-                {
-                    terrY = this.terrainInfo.GetHeightAt(x, z);
-                }
-                else
-                {
-                    terrY = this.GetTSMHeightAt(x, z);
-                }
+                terrY = this.GetTSMHeightAt(x, z);
 
                 if (terrY < colY)
                 {
@@ -271,7 +255,7 @@ namespace MMOC
                                     out indices,
                                     entity.ParentNode._getDerivedPosition(),
                                     entity.ParentNode._getDerivedOrientation(),
-                                    entity.ParentNode.GetScale());
+                                    entity.ParentNode._getDerivedScale());
                             }
 
                             int vertexCount = vertices.Length;
@@ -408,7 +392,7 @@ namespace MMOC
 
                     VertexElement posElem = vertexData.vertexDeclaration.FindElementBySemantic(VertexElementSemantic.VES_POSITION);
                     System.Diagnostics.Debug.Assert(posElem.Type == VertexElementType.VET_FLOAT3);
-                    
+
                     using (HardwareVertexBufferSharedPtr vbuf = vertexData.vertexBufferBinding.GetBuffer(posElem.Source))
                     {
                         byte* vertex = (byte*)vbuf.Lock(HardwareBuffer.LockOptions.HBL_READ_ONLY);
