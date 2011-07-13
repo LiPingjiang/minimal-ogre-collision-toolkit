@@ -1,5 +1,3 @@
-#region Header
-
 /*
 This is a conversion of the
 MOC - Minimal Ogre Collision v 1.0 beta
@@ -30,13 +28,10 @@ WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 OTHER DEALINGS IN THE SOFTWARE.
  */
-
-#endregion Header
-
 namespace MMOC
 {
     using System;
-    using System.Collections.Generic;
+    using System.Diagnostics;
 
     using Mogre;
 
@@ -245,10 +240,15 @@ namespace MMOC
                             // mesh data to retrieve
                             Vector3[] vertices;
                             int[] indices;
+                            RenderOperation.OperationTypes opType;
 
                             // get the mesh information
                             using (MeshPtr mesh = entity.GetMesh())
                             {
+                                opType = mesh.GetSubMesh(0).operationType;
+
+                                Debug.Assert(CheckSubMeshOpType(mesh, opType));
+
                                 GetMeshInformation(
                                     mesh,
                                     out vertices,
@@ -263,22 +263,44 @@ namespace MMOC
 
                             // test for hitting individual triangles on the mesh
                             bool newClosestFound = false;
-                            for (int i = 0; i < indexCount; i += 3)
+                            Pair<bool, float> hit;
+                            switch (opType)
                             {
-                                // check for a hit against this triangle
-                                Pair<bool, float> hit = Mogre.Math.Intersects(ray, vertices[indices[i]], vertices[indices[i + 1]], vertices[indices[i + 2]], true, false);
-
-                                // if it was a hit check if its the closest
-                                if (hit.first)
-                                {
-                                    if ((rr.Distance < 0.0f) ||
-                                        (hit.second < rr.Distance))
+                                case RenderOperation.OperationTypes.OT_TRIANGLE_LIST:
+                                    for (int i = 0; i < indexCount; i += 3)
                                     {
-                                        // this is the closest so far, save it off
-                                        rr.Distance = hit.second;
-                                        newClosestFound = true;
+                                        hit = Mogre.Math.Intersects(ray, vertices[indices[i]], vertices[indices[i + 1]], vertices[indices[i + 2]], true, false);
+
+                                        if (CheckDistance(rr, hit))
+                                        {
+                                            newClosestFound = true;
+                                        }
                                     }
-                                }
+                                    break;
+                                case RenderOperation.OperationTypes.OT_TRIANGLE_STRIP:
+                                    for (int i = 0; i < indexCount - 2; i++)
+                                    {
+                                        hit = Mogre.Math.Intersects(ray, vertices[indices[i]], vertices[indices[i + 1]], vertices[indices[i + 2]], true, true);
+
+                                        if (CheckDistance(rr, hit))
+                                        {
+                                            newClosestFound = true;
+                                        }
+                                    }
+                                    break;
+                                case RenderOperation.OperationTypes.OT_TRIANGLE_FAN:
+                                    for (int i = 0; i < indexCount - 2; i++)
+                                    {
+                                        hit = Mogre.Math.Intersects(ray, vertices[indices[0]], vertices[indices[i + 1]], vertices[indices[i + 2]], true, true);
+
+                                        if (CheckDistance(rr, hit))
+                                        {
+                                            newClosestFound = true;
+                                        }
+                                    }
+                                    break;
+                                default:
+                                    throw new Exception("invalid operation type");
                             }
 
                             // if we found a new closest raycast for this object, update the
@@ -337,9 +359,26 @@ namespace MMOC
 
         #region Private Static Methods
 
+        private static bool CheckDistance(RaycastResult rr, Pair<bool, float> hit)
+        {
+            // if it was a hit check if its the closest
+            if (hit.first)
+            {
+                if ((rr.Distance < 0.0f) ||
+                    (hit.second < rr.Distance))
+                {
+                    // this is the closest so far, save it off
+                    rr.Distance = hit.second;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         // Get the mesh information for the given mesh.
         // Code found on this forum link: http://www.ogre3d.org/wiki/index.php/RetrieveVertexData
-        private static unsafe void GetMeshInformation(MeshPtr mesh, out Vector3[] vertices,  out int[] indices, Vector3 position, Quaternion orient, Vector3 scale)
+        private static unsafe void GetMeshInformation(MeshPtr mesh, out Vector3[] vertices, out int[] indices, Vector3 position, Quaternion orient, Vector3 scale)
         {
             bool addedShared = false;
             int currentOffset = 0, sharedOffset = 0, nextOffset = 0, indexOffset = 0;
@@ -413,7 +452,6 @@ namespace MMOC
                 }
 
                 IndexData indexData = submesh.indexData;
-                uint numTris = indexData.indexCount / 3;
 
                 using (HardwareIndexBufferSharedPtr ibuf = indexData.indexBuffer)
                 {
@@ -425,14 +463,14 @@ namespace MMOC
 
                     if (use32bitindexes)
                     {
-                        for (uint k = 0; k < numTris * 3; ++k)
+                        for (uint k = 0; k < indexData.indexCount; ++k)
                         {
                             indices[indexOffset++] = plong[k] + offset;
                         }
                     }
                     else
                     {
-                        for (uint k = 0; k < numTris * 3; ++k)
+                        for (uint k = 0; k < indexData.indexCount; ++k)
                         {
                             indices[indexOffset++] = pshort[k] + offset;
                         }
@@ -446,6 +484,22 @@ namespace MMOC
         }
 
         #endregion Private Static Methods
+
+        #region Private Methods
+
+        private bool CheckSubMeshOpType(MeshPtr mesh, RenderOperation.OperationTypes opType)
+        {
+            for (ushort i = 0; i < mesh.NumSubMeshes; i++)
+            {
+                if (mesh.GetSubMesh(i).operationType != opType)
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        #endregion Private Methods
 
         #endregion Methods
 
