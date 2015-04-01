@@ -1,0 +1,3 @@
+MOC (Minimal Ogre3d Collision) is a small library with the aim to provide simple and easy to use collision and mouse-picking functionality for the Ogre3D graphics engine written by Thomas Gradl (Nauk) and Esa Kylli (wannabee). It is based on the Ogre3D Wiki entry "Raycasting down to Polygon-Level".
+
+MMOC (Minimal MOGRE Collision) is a C# port of MOC commited by Tobias Bohnen. It is made to be used together with Mogre, a .NET wrapper for the Ogre3d engine.
